@@ -4,3 +4,4 @@
 main.py
 /utils/__pycache__
 /chatbot/results
+/data/chatbot_old.csv
