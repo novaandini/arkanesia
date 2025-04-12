@@ -3,3 +3,4 @@ main.py
 /utils/__pycache__
 /models
 /data/chatbot_old.csv
+/__pycache__

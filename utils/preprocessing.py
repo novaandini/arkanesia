@@ -1,6 +1,7 @@
 import re
 import string
 import nltk
+import json
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
@@ -8,6 +9,7 @@ nltk.download('stopwords') # Untuk stopwords
 from transformers import AutoTokenizer
 from datasets import Dataset
 from datasets import DatasetDict
+import requests
 
 
 factory = StemmerFactory()
@@ -46,18 +48,29 @@ slangwords = {
     "stlh": "setelah", "sblm": "sebelum", "gak": "tidak", "sampe": "sampai", "banget": "sangat", "bngt": "sangat", "gaada": "tanpa", "jd": "jadi", "jdi": "jadi", "kalo": "kalau", "bagu": "bagus",
 }
 
-def fix_slangwords(text):
+def load_slangwords():
+    url = "https://raw.githubusercontent.com/louisowen6/NLP_bahasa_resources/master/combined_slang_words.txt"
+    response = requests.get(url)
+    slang_dict = json.loads(response.text)
+    return slang_dict
+
+slang_dict = load_slangwords()
+
+def fix_slangwords(text, slang_dict=slang_dict, casefold=True):
+    merged_slang = slangwords.copy()
+    merged_slang.update(slang_dict)  # Prioritaskan dari URL jika ada yang sama
+
     words = text.split()
     fixed_words = []
- 
+
     for word in words:
-        if word.lower() in slangwords:
-            fixed_words.append(slangwords[word.lower()])
+        key = word.lower() if casefold else word
+        if key in merged_slang:
+            fixed_words.append(merged_slang[key])
         else:
             fixed_words.append(word)
- 
-    fixed_text = ' '.join(fixed_words)
-    return fixed_text
+
+    return ' '.join(fixed_words)
 
 def stemmingText(text):
     return stemmer.stem(text)
@@ -71,7 +84,7 @@ def filteringText(text): # Menghapus stopwords dalam teks
     listStopwords = set(stopwords.words('indonesian'))
     listStopwords1 = set(stopwords.words('english'))
     listStopwords.update(listStopwords1)
-    listStopwords.update(['yaa','nya','na','sih','ku',"di","ya","gaa","loh","kah","woi","woii","woy","dong","kok","ny","eh","nyaa","nih","Aah", "aja","tokopedia","barang","beli","jual","pakai","kirim","tolong","aplikasi","pesan","potong","harga","belanja","bayar","toko"])
+    listStopwords.update(['yaa','nya','na','sih','ku',"di","ya","gaa","loh","kah","woi","woii","woy","dong","kok","ny","eh","nyaa","nih","Aah", "aja"])
     filtered = []
     for txt in text:
         if txt not in listStopwords:
