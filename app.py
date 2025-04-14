@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from geopy.distance import geodesic
 from dotenv import load_dotenv
-from sklearn.metrics.pairwise import cosine_similarity
+# from sklearn.metrics.pairwise import cosine_similarity
 import os
 
 load_dotenv()
@@ -33,8 +33,8 @@ class Tour(db.Model):
     def __repr__(self):
         return f'<Tour {self.name}>'
 
-@app.route('/rekomendasi', methods=['POST'])
-def rekomendasi():
+@app.route('/recommendation', methods=['POST'])
+def recommendation():
     data = request.get_json()
     user_loc = (data['latitude'], data['longitude'])
 
@@ -45,41 +45,53 @@ def rekomendasi():
         lokasi_wisata = (tour.latitude, tour.longitude)
         jarak = round(geodesic(user_loc, lokasi_wisata).kilometers, 2)
         hasil.append({
+            'id': tour.id,
             'name': tour.name,
+            'date': tour.date,
             'location': tour.location,
+            'image': tour.image,
+            'description': tour.description,
+            'link': tour.link,
+            'prices': tour.prices,
+            'disrict': tour.disrict,
+            'province': tour.province,
+            'latitude': tour.latitude,
+            'longitude': tour.longitude,
+            'createdAt': tour.createdAt,
+            'updatedAt': tour.updatedAt,
             'jarak': jarak
         })
 
     hasil = sorted(hasil, key=lambda x: x['jarak'])[:5]  # Ambil 5 terdekat
     return jsonify(hasil)
 
-def calculate_similarity(user_interest, item_categories):
-    all_categories = list(set(user_interest + item_categories))
-    user_vector = [1 if cat in user_interest else 0 for cat in all_categories]
-    item_vector = [1 if cat in item_categories else 0 for cat in all_categories]
+# def calculate_similarity(user_interest, item_categories):
+#     all_categories = list(set(user_interest + item_categories))
+#     user_vector = [1 if cat in user_interest else 0 for cat in all_categories]
+#     item_vector = [1 if cat in item_categories else 0 for cat in all_categories]
     
-    return cosine_similarity([user_vector], [item_vector])[0][0]
+#     return cosine_similarity([user_vector], [item_vector])[0][0]
 
-@app.route('/minat', methods=['POST'])
-def minat():
-    data = request.get_json()
-    interests = (data['interest'])
-    session['user_interest'] = interests
+# @app.route('/minat', methods=['POST'])
+# def minat():
+#     data = request.get_json()
+#     interests = (data['interest'])
+#     session['user_interest'] = interests
 
-    tours = Tour.query.all()
-    recommendations = []
-    for tour in tours:
-        similarity = calculate_similarity(interests, tour.name)
-        if similarity > 0:
-            recommendations.append({
-                'id': tour.id,
-                'name': tour.name,
-                'location': tour.location,
-                'similarity': similarity
-            })
+#     tours = Tour.query.all()
+#     recommendations = []
+#     for tour in tours:
+#         similarity = calculate_similarity(interests, tour.name)
+#         if similarity > 0:
+#             recommendations.append({
+#                 'id': tour.id,
+#                 'name': tour.name,
+#                 'location': tour.location,
+#                 'similarity': similarity
+#             })
 
-    hasil = sorted(recommendations, key=lambda x: x['similarity'], reverse=True)[:5]
-    return jsonify(hasil)
+#     hasil = sorted(recommendations, key=lambda x: x['similarity'], reverse=True)[:5]
+#     return jsonify(hasil)
 
 if __name__ == '__main__':
     app.run(debug=True)
