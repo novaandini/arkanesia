@@ -53,7 +53,7 @@ def recommendation():
             'description': tour.description,
             'link': tour.link,
             'prices': tour.prices,
-            'disrict': tour.disrict,
+            'district': tour.district,
             'province': tour.province,
             'latitude': tour.latitude,
             'longitude': tour.longitude,
