@@ -160,6 +160,7 @@ def rekomendasi_wisata(question, top_k=3):
         idx = idx.item()
         row = df_filtered.iloc[idx]
         recommendations.append({
+            'id' : row['id'],
             'name' : row['name'],
             'district': row['district'],
             'province': row['province'],
@@ -228,6 +229,7 @@ def predict(text):
     data = []
     for rec in recommendations:
         data.append({
+            'id': int(rec['id']),
             'name': rec['name'],
             'district': rec['district'],
             'province': rec['province'],
