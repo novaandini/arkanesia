@@ -1,7 +1,8 @@
 /arkanesia_env
 main.py
 /utils/__pycache__
-/models
+/models/chatbot_sklearn_model
+/models/results
 /data/chatbot_old.csv
 /__pycache__
 .env
