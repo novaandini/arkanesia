@@ -6,15 +6,20 @@ from utils.preprocessing import cleaningText
 from utils.preprocessing import casefoldingText
 from utils.preprocessing import stemmingText
 from utils.preprocessing import fix_slangwords
-from transformers import AutoModelForSequenceClassification
+# from transformers import AutoModelForSequenceClassification
 from sentence_transformers import SentenceTransformer, util
-from transformers import AutoTokenizer
+# from transformers import AutoTokenizer
 from flask_cors import CORS
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import re
 import pandas as pd
 import os
+# import gdown
+import pickle
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=5000)
 model = SentenceTransformer('distiluse-base-multilingual-cased')
 
 load_dotenv()
@@ -122,60 +127,89 @@ wisata_cleaned_df = load_cleaned_tour()
 embeddings = model.encode(wisata_cleaned_df['combined'].tolist(), convert_to_tensor=True)
 
 def rekomendasi_wisata(question, top_k=3):
-    original_question = question.lower()
+    with app.app_context():
+        original_question = question.lower()
 
-    all_provinces = wisata_cleaned_df['province'].str.lower().unique()
+        all_provinces = wisata_cleaned_df['province'].str.lower().unique()
 
-    lokasi_filter = None
-    for prov in all_provinces:
-        if prov in original_question:
-            lokasi_filter = prov
-            break
+        lokasi_filter = None
+        for prov in all_provinces:
+            if prov in original_question:
+                lokasi_filter = prov
+                break
 
-    question = cleaningText(question)
-    question = casefoldingText(question)
-    question = stemmingText(question)
-    query_embedding = model.encode(question, convert_to_tensor=True)
-    
-    # Saat ada filter lokasi
-    if lokasi_filter:
-        mask = wisata_cleaned_df['province'].str.lower().str.contains(lokasi_filter)
-        df_filtered = wisata_cleaned_df[mask]
-        embeddings_filtered = embeddings[mask.values]  # <- filter embedding juga
-    else:
-        df_filtered = wisata_cleaned_df
-        embeddings_filtered = embeddings
+        question = cleaningText(question)
+        question = casefoldingText(question)
+        question = stemmingText(question)
+        query_embedding = model.encode(question, convert_to_tensor=True)
+        
+        # Saat ada filter lokasi
+        if lokasi_filter:
+            mask = wisata_cleaned_df['province'].str.lower().str.contains(lokasi_filter)
+            df_filtered = wisata_cleaned_df[mask]
+            embeddings_filtered = embeddings[mask.values]  # <- filter embedding juga
+        else:
+            df_filtered = wisata_cleaned_df
+            embeddings_filtered = embeddings
 
-    # Reset index
-    df_filtered = df_filtered.reset_index(drop=True)
-    embeddings_filtered = embeddings_filtered.cpu()  # kalau tensor di GPU
+        # Reset index
+        df_filtered = df_filtered.reset_index(drop=True)
+        embeddings_filtered = embeddings_filtered.cpu()  # kalau tensor di GPU
 
-    # Cosine similarity terhadap embedding hasil filter
-    cos_scores = util.pytorch_cos_sim(query_embedding, embeddings_filtered)[0]
-    top_results = cos_scores.topk(k=top_k)
+        # Cosine similarity terhadap embedding hasil filter
+        cos_scores = util.pytorch_cos_sim(query_embedding, embeddings_filtered)[0]
+        top_results = cos_scores.topk(k=top_k)
 
-    # Ambil hasil
-    recommendations = []
-    for score, idx in zip(top_results[0], top_results[1]):
-        idx = idx.item()
-        row = df_filtered.iloc[idx]
-        recommendations.append({
-            'id' : row['id'],
-            'name' : row['name'],
-            'district': row['district'],
-            'province': row['province'],
-            'location': row['location'],
-            'description' : row['description'],
-        })
+        # Ambil hasil
+        recommendations = []
+        for score, idx in zip(top_results[0], top_results[1]):
+            idx = idx.item()
+            wisata_id = df_filtered.iloc[idx]['id']
 
-    return recommendations, lokasi_filter
+            # Query ke database berdasarkan id asli
+            wisata = Tour.query.get(wisata_id)
+
+            # Pastikan wisata-nya ketemu
+            if wisata:
+                recommendations.append({
+                    'id'         : wisata.id,
+                    'name'       : wisata.name,
+                    'district'   : wisata.district,
+                    'province'   : wisata.province,
+                    'location'   : wisata.location,
+                    'description': wisata.description,
+                })
+
+        return recommendations, lokasi_filter
 
 chatbot_url = "https://raw.githubusercontent.com/novaandini/arkanesia/refs/heads/main/data/chatbot.csv"
 chatbot_df = pd.read_csv(chatbot_url)
-chatbot_model = AutoModelForSequenceClassification.from_pretrained("./models/chatbot_bert_model")
-chatbot_tokenizer = AutoTokenizer.from_pretrained("./models/chatbot_bert_model")
-model = SentenceTransformer('distiluse-base-multilingual-cased')
-doc_embeddings = model.encode(chatbot_df['Pertanyaan'].tolist(), convert_to_tensor=True)
+
+# ID file dari Google Drive
+# file_id = '1ci-vc5GTWdkHewbLgMuRydx77FwM-Sof'
+# # Output path
+# output_path = 'models/chatbot_bert_model/model.safetensors'
+
+# # Cek apakah file udah ada
+# if not os.path.exists(output_path):
+#     # Bikin folder kalau belum ada
+#     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+#     url = f'https://drive.google.com/uc?id={file_id}'
+#     gdown.download(url, output_path, quiet=False)
+#     print("Model downloaded successfully!")
+# else:
+#     print("Model already exists.")
+
+
+# chatbot_model = AutoModelForSequenceClassification.from_pretrained("./models/chatbot_bert_model")
+# chatbot_tokenizer = AutoTokenizer.from_pretrained("./models/chatbot_bert_model")
+
+with open('./models/chatbot_sklearn_model/text_model.pkl', 'rb') as model_file:
+    chatbot_model = pickle.load(model_file)  # Ini model Sklearn
+
+with open('./models/chatbot_sklearn_model/vectorizer.pkl', 'rb') as f:
+    chatbot_tokenizer = pickle.load(f)
 
 label_mapping = {
     0: "aktivitas", 1: "budget", 2: "cuaca", 3: "detail_wisata",
@@ -195,18 +229,23 @@ def predict(text):
     cleaned_text = preprocess(text)
 
     # Text classification
-    inputs = chatbot_tokenizer(cleaned_text, return_tensors="pt", truncation=True, padding=True, max_length=128)
-    with torch.no_grad():
-        outputs = chatbot_model(**inputs)
-    probs = torch.nn.functional.softmax(outputs.logits, dim=1)
-    label = torch.argmax(probs, dim=1).item()
-    confidence = probs[0][label].item()
+    # inputs = chatbot_tokenizer(cleaned_text, return_tensors="pt", truncation=True, padding=True, max_length=128)
+    # with torch.no_grad():
+    #     outputs = chatbot_model(**inputs)
+    # probs = torch.nn.functional.softmax(outputs.logits, dim=1)
+    # label = torch.argmax(probs, dim=1).item()
+    # confidence = probs[0][label].item()
+
+    vector = chatbot_tokenizer.transform([cleaned_text])
+    prediction = chatbot_model.predict(vector)
+    intent = prediction[0]
 
     # Ambil rekomendasi wisata
     recommendations, lokasi_filter = rekomendasi_wisata(text)
 
     # Pilih jawaban template sesuai intent
-    answer = chatbot_df[chatbot_df['Intent'] == label_mapping[label]].sample(n=1).iloc[0]['Jawaban']
+    # answer = chatbot_df[chatbot_df['Intent'] == label_mapping[label]].sample(n=1).iloc[0]['Jawaban']
+    answer = chatbot_df[chatbot_df['Intent'] == intent].sample(n=1).iloc[0]['Jawaban']
 
     placeholders = re.findall(r"\[rekomendasi_(\d+)\]", answer)
     final_answer = answer
@@ -239,8 +278,9 @@ def predict(text):
 
     result = {
         'answer': final_answer,
-        'intent': label_mapping[label],
-        'score': confidence,
+        # 'score': confidence,
+        'intent': intent,
+        # 'intent': label_mapping[label],
         'result': data
     }
     return result
@@ -264,47 +304,51 @@ def calculate_similarity(user_interest, item_categories):
     return cosine_similarity([user_vector], [item_vector])[0][0]
 
 @app.route('/interest', methods=['POST'])
+@app.route('/interest', methods=['POST'])
 def interest():
     data = request.get_json()
 
     if isinstance(data, dict):
-        data = [data]  # jadikan list of dict kalau cuma satu
+        data = [data]
 
     df = pd.DataFrame(data)
 
-    # Gabungkan semua interest jadi satu string
     interests = (df['name'].str.cat(df[['district', 'province', 'location', 'description']], sep=' ')).str.lower()
-
-    # Convert Series jadi string
     interests_text = ' '.join(interests)
-
     cleaned_text = preprocess(interests_text)
 
     session['user_interest'] = cleaned_text
 
-    tours = load_cleaned_tour()
+    tours_cleaned = load_cleaned_tour()
+
+    ids = tours_cleaned['id'].tolist()
+    tour_details = Tour.query.filter(Tour.id.in_(ids)).all()
+    tour_dict = {tour.id: tour for tour in tour_details}
+
     recommendations = []
 
-    for _, tour in tours.iterrows():
+    for _, tour in tours_cleaned.iterrows():
         similarity = calculate_similarity(cleaned_text.split(), tour['combined'].split())
         if similarity > 0:
-            recommendations.append({
-                'id': tour['id'],
-                'name': tour['name'],
-                'date': tour['date'],
-                'location': tour['location'],
-                'image': tour['image'],
-                'description': tour['description'],
-                'link': tour['link'],
-                'prices': tour['prices'],
-                'district': tour['district'],
-                'province': tour['province'],
-                'latitude': tour['latitude'],
-                'longitude': tour['longitude'],
-                'createdAt': tour['createdAt'],
-                'updatedAt': tour['updatedAt'],
-                'similarity': similarity
-            })
+            tour_detail = tour_dict.get(tour['id'])
+            if tour_detail:
+                recommendations.append({
+                    'id': tour_detail.id,
+                    'name': tour_detail.name,
+                    'date': tour_detail.date,
+                    'location': tour_detail.location,
+                    'image': tour_detail.image,
+                    'description': tour_detail.description,
+                    'link': tour_detail.link,
+                    'prices': tour_detail.prices,
+                    'district': tour_detail.district,
+                    'province': tour_detail.province,
+                    'latitude': tour_detail.latitude,
+                    'longitude': tour_detail.longitude,
+                    'createdAt': tour_detail.createdAt,
+                    'updatedAt': tour_detail.updatedAt,
+                    'similarity': similarity
+                })
 
     hasil = sorted(recommendations, key=lambda x: x['similarity'], reverse=True)[:5]
     return jsonify(hasil)
