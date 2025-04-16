@@ -11,7 +11,7 @@ from sentence_transformers import SentenceTransformer, util
 # from transformers import AutoTokenizer
 from flask_cors import CORS
 from sklearn.metrics.pairwise import cosine_similarity
-import torch
+# import torch
 import re
 import pandas as pd
 import os

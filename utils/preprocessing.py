@@ -6,15 +6,15 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 nltk.download('stopwords') # Untuk stopwords
-from transformers import AutoTokenizer
-from datasets import Dataset
-from datasets import DatasetDict
+# from transformers import AutoTokenizer
+# from datasets import Dataset
+# from datasets import DatasetDict
 import requests
 
 
 factory = StemmerFactory()
 stemmer = factory.create_stemmer()
-tokenizer = AutoTokenizer.from_pretrained("indobenchmark/indobert-base-p1")
+# tokenizer = AutoTokenizer.from_pretrained("indobenchmark/indobert-base-p1")
 
 def cleaningText(text):
     text = re.sub(r'@[A-Za-z0-9]+', '', text)
@@ -97,7 +97,7 @@ def toSentence(list_words): # Mengubah daftar kata menjadi kalimat
     return sentence
 
 # Tokenisasi
-def tokenize(batch):
-    tokenized = tokenizer(batch['question'], padding=True, truncation=True)
-    tokenized["labels"] = batch["label"]
-    return tokenized
+# def tokenize(batch):
+#     tokenized = tokenizer(batch['question'], padding=True, truncation=True)
+#     tokenized["labels"] = batch["label"]
+#     return tokenized
