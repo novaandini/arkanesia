@@ -32,7 +32,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 db = SQLAlchemy(app)
 
 class Tour(db.Model):
-    __tablename__ = 'tour'
+    __tablename__ = 'Tour'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(191), nullable=False)
