@@ -25,7 +25,7 @@ vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=5000)
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "https://arkanesia.vercel.app"}}, supports_credentials=True)
 app.secret_key = os.getenv("SECRET_KEY")
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 db = SQLAlchemy(app)
