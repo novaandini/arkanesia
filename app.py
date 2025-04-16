@@ -21,7 +21,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=5000)
 # model = SentenceTransformer('distiluse-base-multilingual-cased')
-
+import pymysql
+pymysql.install_as_MySQLdb()
 load_dotenv()
 
 app = Flask(__name__)
