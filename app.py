@@ -7,7 +7,7 @@ from utils.preprocessing import casefoldingText
 from utils.preprocessing import stemmingText
 from utils.preprocessing import fix_slangwords
 # from transformers import AutoModelForSequenceClassification
-from sentence_transformers import SentenceTransformer, util
+# from sentence_transformers import SentenceTransformer, util
 # from transformers import AutoTokenizer
 from flask_cors import CORS
 from sklearn.metrics.pairwise import cosine_similarity
@@ -20,7 +20,7 @@ import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=5000)
-model = SentenceTransformer('distiluse-base-multilingual-cased')
+# model = SentenceTransformer('distiluse-base-multilingual-cased')
 
 load_dotenv()
 
@@ -124,7 +124,8 @@ def load_cleaned_tour():
         return wisata_cleaned_df
 
 wisata_cleaned_df = load_cleaned_tour()
-embeddings = model.encode(wisata_cleaned_df['combined'].tolist(), convert_to_tensor=True)
+# embeddings = model.encode(wisata_cleaned_df['combined'].tolist(), convert_to_tensor=True)
+embeddings = vectorizer.fit_transform(wisata_cleaned_df['combined'].tolist())
 
 def rekomendasi_wisata(question, top_k=3):
     with app.app_context():
@@ -141,7 +142,7 @@ def rekomendasi_wisata(question, top_k=3):
         question = cleaningText(question)
         question = casefoldingText(question)
         question = stemmingText(question)
-        query_embedding = model.encode(question, convert_to_tensor=True)
+        query_embedding = vectorizer.transform([question])  # Use transform here, not fit_transform
         
         # Saat ada filter lokasi
         if lokasi_filter:
@@ -154,16 +155,14 @@ def rekomendasi_wisata(question, top_k=3):
 
         # Reset index
         df_filtered = df_filtered.reset_index(drop=True)
-        embeddings_filtered = embeddings_filtered.cpu()  # kalau tensor di GPU
 
         # Cosine similarity terhadap embedding hasil filter
-        cos_scores = util.pytorch_cos_sim(query_embedding, embeddings_filtered)[0]
-        top_results = cos_scores.topk(k=top_k)
+        cos_scores = cosine_similarity(query_embedding, embeddings_filtered)
+        top_results = cos_scores.argsort()[0][-top_k:][::-1]  # Sorting to get the top k results
 
         # Ambil hasil
         recommendations = []
-        for score, idx in zip(top_results[0], top_results[1]):
-            idx = idx.item()
+        for idx in top_results:
             wisata_id = df_filtered.iloc[idx]['id']
 
             # Query ke database berdasarkan id asli
@@ -181,6 +180,7 @@ def rekomendasi_wisata(question, top_k=3):
                 })
 
         return recommendations, lokasi_filter
+
 
 chatbot_url = "https://raw.githubusercontent.com/novaandini/arkanesia/refs/heads/main/data/chatbot.csv"
 chatbot_df = pd.read_csv(chatbot_url)
